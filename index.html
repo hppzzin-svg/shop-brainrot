@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Loja Fake — Compradores</title>
+  <style>
+    :root{font-family:Inter,system-ui,Arial;margin:0}
+    body{padding:20px;background:#f4f6f8;color:#111}
+    .container{max-width:980px;margin:0 auto}
+    header{display:flex;justify-content:space-between;align-items:center}
+    .card{background:white;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.08);margin:12px 0}
+    .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+    .product{padding:12px;border:1px solid #eee;border-radius:8px}
+    button{cursor:pointer;padding:8px 10px;border-radius:6px;border:0}
+    .primary{background:#0b74de;color:white}
+    .muted{background:#e9eef6;color:#0b74de}
+    .small{font-size:13px}
+    .center{text-align:center}
+    .flex{display:flex;gap:8px;align-items:center}
+    input,select{padding:8px;border-radius:6px;border:1px solid #ddd}
+    footer{margin-top:24px;color:#666;font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Loja Fake</h1>
+      <div>
+        <span id="usernameDisplay">Visitante</span> • Saldo: <strong id="balanceDisplay">R$ 0,00</strong>
+        <button id="btnOpenLogin" style="margin-left:10px">Entrar / Registrar</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <strong>Produtos publicados</strong>
+          <div class="small">Compre itens de demonstração — tudo fictício.</div>
+        </div>
+        <div class="small">Admin publica no <code>admin.html</code></div>
+      </div>
+    </div>
+
+    <div class="products" id="productsContainer"></div>
+
+    <div class="card center">
+      <button id="btnReset" class="muted">Resetar dados locais (limpar localStorage)</button>
+    </div>
+
+    <footer>
+      <div>Como funciona: este é um protótipo estático. Produtos e contas são salvos no navegador com <code>localStorage</code>. Para administração, abra <code>admin.html</code> e faça login com a senha do painel (padrão: <code>admin123</code>).</div>
+    </footer>
+  </div>
+
+  <!-- modal simples de login/registro -->
+  <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);align-items:center;justify-content:center">
+    <div style="background:white;padding:18px;border-radius:10px;min-width:320px;max-width:420px">
+      <h3 id="modalTitle">Entrar / Registrar</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="inputUser" placeholder="Nome de usuário (apenas letras/números)" />
+        <input id="inputBalance" placeholder="Saldo inicial (ex: 100)" />
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button id="btnCloseModal" class="muted">Fechar</button>
+          <button id="btnRegister" class="primary">Registrar / Entrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Utilitários
+    const formatMoney = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+
+    // Storage keys
+    const LS_PRODUCTS = 'loja_fake_products';
+    const LS_USERS = 'loja_fake_users';
+    const LS_SESSION = 'loja_fake_session';
+
+    // Inicializar dados padrão se não existirem
+    function withDefaultData() {
+      if (!localStorage.getItem(LS_PRODUCTS)) {
+        const sample = [
+          {id: 'p1', title: 'Camiseta Demo', desc: 'Camiseta com estampa demo.', price: 49.90, seller: 'admin'},
+          {id: 'p2', title: 'Caneca Demo', desc: 'Caneca de cerâmica.', price: 29.50, seller: 'admin'}
+        ];
+        localStorage.setItem(LS_PRODUCTS, JSON.stringify(sample));
+      }
+      if (!localStorage.getItem(LS_USERS)) {
+        // usuário admin inicial
+        const users = [{username:'admin', balance:1000.00}];
+        localStorage.setItem(LS_USERS, JSON.stringify(users));
+      }
+    }
+
+    withDefaultData();
+
+    // Carregar e renderizar
+    function getProducts(){return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]');}
+    function setProducts(p){localStorage.setItem(LS_PRODUCTS, JSON.stringify(p));}
+    function getUsers(){return JSON.parse(localStorage.getItem(LS_USERS) || '[]');}
+    function setUsers(u){localStorage.setItem(LS_USERS, JSON.stringify(u));}
+    function getSession(){return JSON.parse(localStorage.getItem(LS_SESSION) || 'null');}
+    function setSession(s){localStorage.setItem(LS_SESSION, JSON.stringify(s));}
+
+    const productsContainer = document.getElementById('productsContainer');
+    const balanceDisplay = document.getElementById('balanceDisplay');
+    const usernameDisplay = document.getElementById('usernameDisplay');
+
+    function renderProducts(){
+      const products = getProducts();
+      productsContainer.innerHTML = products.map(p => `
+        <div class="product card">
+          <h4>${p.title}</h4>
+          <div class="small">${p.desc || ''}</div>
+          <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+            <div><strong>${formatMoney(p.price)}</strong></div>
+            <div class="flex">
+              <div class="small">Vendedor: ${p.seller}</div>
+              <button class="primary" onclick="buyProduct('${p.id}')">Comprar</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderSession(){
+      const s = getSession();
+      if (s) {
+        usernameDisplay.textContent = s.username;
+        const users = getUsers();
+        const me = users.find(u=>u.username===s.username) || {balance:0};
+        balanceDisplay.textContent = formatMoney(me.balance || 0);
+      } else {
+        usernameDisplay.textContent = 'Visitante';
+        balanceDisplay.textContent = formatMoney(0);
+      }
+    }
+
+    // Comprar
+    window.buyProduct = function(id){
+      const s = getSession();
+      if (!s) { alert('Faça login/registro antes de comprar.'); openModal(); return; }
+      const products = getProducts();
+      const p = products.find(x=>x.id===id);
+      if (!p) return alert('Produto não encontrado.');
+
+      const users = getUsers();
+      const buyer = users.find(u=>u.username===s.username);
+      if (!buyer) return alert('Conta do comprador não encontrada.');
+      if (buyer.balance < p.price) return alert('Saldo insuficiente.');
+
+      // Transferir: subtrai do comprador e soma ao vendedor (se existir)
+      buyer.balance = Number((buyer.balance - p.price).toFixed(2));
+      const seller = users.find(u=>u.username===p.seller);
+      if (seller) seller.balance = Number((seller.balance + p.price).toFixed(2));
+
+      setUsers(users);
+      alert('Compra realizada com sucesso (fictícia).');
+      renderSession();
+    }
+
+    // Modal de login/registro
+    const modal = document.getElementById('modal');
+    document.getElementById('btnOpenLogin').addEventListener('click', openModal);
+    document.getElementById('btnCloseModal').addEventListener('click', ()=>modal.style.display='none');
+
+    function openModal(){ document.getElementById('inputUser').value=''; document.getElementById('inputBalance').value=''; modal.style.display='flex'; }
+
+    document.getElementById('btnRegister').addEventListener('click', ()=>{
+      const name = document.getElementById('inputUser').value.trim();
+      const bal = parseFloat(document.getElementById('inputBalance').value || 0) || 0;
+      if (!/^[a-zA-Z0-9_-]{3,20}$/.test(name)) return alert('Nome inválido. Use 3-20 caracteres (letras/números/_/-).');
+      const users = getUsers();
+      let user = users.find(u=>u.username===name);
+      if (!user) {
+        user = {username: name, balance: Number(bal.toFixed(2))};
+        users.push(user);
+      }
+      setUsers(users);
+      setSession({username: name});
+      modal.style.display='none';
+      renderSession();
+      alert('Sessão iniciada como ' + name + ' (fictício).');
+    });
+
+    document.getElementById('btnReset').addEventListener('click', ()=>{
+      if (!confirm('Deseja realmente resetar os dados locais? Isso apagará produtos e usuários salvos neste navegador.')) return;
+      localStorage.removeItem(LS_PRODUCTS);
+      localStorage.removeItem(LS_USERS);
+      localStorage.removeItem(LS_SESSION);
+      withDefaultData();
+      renderProducts();
+      renderSession();
+      alert('Dados resetados.');
+    });
+
+    // inicializa
+    renderProducts();
+    renderSession();
+  </script>
+</body>
+</html>
