@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Admin — Loja Fake</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial;background:#f3f5f8;padding:18px}
+    .container{max-width:980px;margin:0 auto}
+    .card{background:white;padding:14px;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);margin:10px 0}
+    input,textarea{width:100%;padding:8px;border-radius:6px;border:1px solid #ddd;margin-top:6px}
+    button{padding:8px 10px;border-radius:6px;border:0;cursor:pointer}
+    .primary{background:#0b74de;color:white}
+    .muted{background:#e9eef6;color:#0b74de}
+    .flex{display:flex;gap:8px;align-items:center}
+    .small{font-size:13px;color:#666}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eee}
+    .danger{background:#e74c3c;color:white}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Painel de Publicação — Loja Fake</h1>
+    <div class="card">
+      <div class="small">Login do administrador</div>
+      <input id="adminPass" placeholder="Senha do painel (padrão: admin123)" type="password" />
+      <div style="margin-top:8px">
+        <button id="btnLogin" class="primary">Entrar</button>
+        <button id="btnLogout" class="muted" style="display:none">Sair</button>
+      </div>
+    </div>
+
+    <div id="panel" style="display:none">
+      <div class="card">
+        <h3>Publicar novo produto</h3>
+        <input id="pTitle" placeholder="Título" />
+        <textarea id="pDesc" placeholder="Descrição" rows="3"></textarea>
+        <input id="pPrice" placeholder="Preço (ex: 49.90)" />
+        <input id="pSeller" placeholder="Vendedor (username) — normalmente 'admin'" />
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button id="btnAdd" class="primary">Publicar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Produtos publicados</h3>
+        <div id="listProducts"></div>
+      </div>
+
+      <div class="card">
+        <h3>Usuários e saldos</h3>
+        <div id="listUsers"></div>
+      </div>
+
+      <div class="card">
+        <button id="btnExport" class="muted">Exportar dados (JSON)</button>
+        <button id="btnClearUsers" class="danger" style="margin-left:8px">Apagar todos usuários (exceto admin)</button>
+      </div>
+    </div>
+
+    <footer class="small">Lembrete: tudo é local e fictício. Troque a senha padrão antes de mostrar para alguém.</footer>
+  </div>
+
+  <script>
+    // Chaves de storage iguais ao index
+    const LS_PRODUCTS = 'loja_fake_products';
+    const LS_USERS = 'loja_fake_users';
+
+    const DEFAULT_ADMIN_PASS = 'admin123'; // altere antes de publicar
+
+    function getProducts(){return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]');}
+    function setProducts(p){localStorage.setItem(LS_PRODUCTS, JSON.stringify(p));}
+    function getUsers(){return JSON.parse(localStorage.getItem(LS_USERS) || '[]');}
+    function setUsers(u){localStorage.setItem(LS_USERS, JSON.stringify(u));}
+
+    // login simples
+    let authed = false;
+    const btnLogin = document.getElementById('btnLogin');
+    const btnLogout = document.getElementById('btnLogout');
+    const panel = document.getElementById('panel');
+
+    btnLogin.addEventListener('click', ()=>{
+      const pass = document.getElementById('adminPass').value;
+      if (pass === DEFAULT_ADMIN_PASS) {
+        authed = true; document.getElementById('adminPass').value='';
+        panel.style.display='block'; btnLogout.style.display='inline-block'; btnLogin.style.display='none';
+        renderProducts(); renderUsers();
+      } else alert('Senha incorreta.');
+    });
+    btnLogout.addEventListener('click', ()=>{authed=false; panel.style.display='none'; btnLogout.style.display='none'; btnLogin.style.display='inline-block';});
+
+    document.getElementById('btnAdd').addEventListener('click', ()=>{
+      if (!authed) return alert('Faça login como admin.');
+      const title = document.getElementById('pTitle').value.trim();
+      const desc = document.getElementById('pDesc').value.trim();
+      const price = parseFloat(document.getElementById('pPrice').value || '0');
+      const seller = document.getElementById('pSeller').value.trim() || 'admin';
+      if (!title || !price || price <= 0) return alert('Título e preço válidos são necessários.');
+      const products = getProducts();
+      const id = 'p' + Date.now();
+      products.push({id,title,desc,price,seller});
+      setProducts(products);
+      renderProducts();
+      alert('Produto publicado.');
+      document.getElementById('pTitle').value=''; document.getElementById('pDesc').value=''; document.getElementById('pPrice').value='';
+    });
+
+    function renderProducts(){
+      const el = document.getElementById('listProducts');
+      const products = getProducts();
+      if (!products.length) { el.innerHTML = '<div class="small">Nenhum produto</div>'; return; }
+      el.innerHTML = '<table><thead><tr><th>Título</th><th>Preço</th><th>Vendedor</th><th></th></tr></thead><tbody>' +
+        products.map(p=>`<tr><td>${p.title}</td><td>R$ ${Number(p.price).toFixed(2)}</td><td>${p.seller}</td><td><button data-id="${p.id}" class="del">Excluir</button></td></tr>`).join('') + '</tbody></table>';
+      Array.from(document.querySelectorAll('.del')).forEach(btn=>btn.addEventListener('click', e=>{if(!confirm('Excluir produto?'))return; const id=e.target.dataset.id; const ps=getProducts().filter(x=>x.id!==id); setProducts(ps); renderProducts();}));
+    }
+
+    function renderUsers(){
+      const el = document.getElementById('listUsers');
+      const users = getUsers();
+      if (!users.length) { el.innerHTML = '<div class="small">Nenhum usuário</div>'; return; }
+      el.innerHTML = '<table><thead><tr><th>Usuário</th><th>Saldo</th></tr></thead><tbody>' +
+        users.map(u=>`<tr><td>${u.username}</td><td>R$ ${Number(u.balance).toFixed(2)}</td></tr>`).join('') + '</tbody></table>';
+    }
+
+    document.getElementById('btnExport').addEventListener('click', ()=>{
+      const data = {products: getProducts(), users: getUsers()};
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'loja_fake_dump.json'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('btnClearUsers').addEventListener('click', ()=>{
+      if (!confirm('Remover todos os usuários exceto admin?')) return;
+      const users = getUsers().filter(u=>u.username==='admin');
+      if (!users.length) users.push({username:'admin', balance:1000});
+      setUsers(users);
+      renderUsers();
+      alert('Usuários limpos (exceto admin).');
+    });
+
+    // inicializa: garante admin existe
+    (function ensureAdmin(){
+      const users = getUsers();
+      if (!users.find(u=>u.username==='admin')) { users.push({username:'admin', balance:1000}); setUsers(users); }
+    })();
+  </script>
+</body>
+</html>
